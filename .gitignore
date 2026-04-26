@@ -1,0 +1,8 @@
+*.env
+
+*n800.txt
+".env" 
+"backend/data/" 
+"backend/venv/" 
+"__pycache__/" 
+"*.pyc" 
