@@ -1,151 +1,117 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-if (!API_BASE_URL) {
-  throw new Error("NEXT_PUBLIC_API_BASE_URL is not defined");
-}
-
-export type CategoryBreakdownItem = {
-  category: string;
-  value: number;
-  percent: number;
+export type AuthResponse = {
+  token: string;
+  user_id: number;
 };
 
-export type AdviceItem = {
-  title: string;
-  message: string;
-  priority: "high" | "medium" | "low" | string;
+export type Asset = {
+  id: number;
+  type: string;
+  name: string;
+  symbol: string;
+  quantity: number;
+  purchase_price: number;
+  purchase_date: string | null;
+  notes: string;
+  current_price: number | null;
 };
 
-export type DashboardSummary = {
-  portfolio_id: number;
-  portfolio_name: string;
-  base_currency: string;
-  total_initial_value: number;
-  total_current_value: number;
-  profit_loss: number;
-  roi_percent: number;
-  yearly_return: number;
-  category_breakdown: CategoryBreakdownItem[];
-  advice: AdviceItem[];
+export type AdviceResponse = {
+  portfolio_summary: {
+    total_value: number;
+    total_invested: number;
+    roi_percent: number;
+    assets: string[];
+  };
+  advices: string[];
 };
 
-export async function getDashboard(portfolioId: number): Promise<DashboardSummary> {
-  const res = await fetch(`${API_BASE_URL}/api/dashboard?portfolio_id=${portfolioId}`, {
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  token?: string
+): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
     cache: "no-store",
   });
 
+  const data = await res.json();
+
   if (!res.ok) {
-    throw new Error("Failed to fetch dashboard data");
+    throw new Error(data?.error || data?.message || "Request failed");
   }
 
-  return res.json();
+  return data as T;
 }
 
-export type Portfolio = {
-  id: number;
-  name: string;
-  base_currency: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type PortfolioCreate = {
-  name: string;
-  base_currency: string;
-};
-
-export type PortfolioUpdate = {
-  name?: string;
-  base_currency?: string;
-};
-
-export type Holding = {
-  id: number;
-  portfolio_id: number;
-  name: string;
-  category: string;
-  quantity: number;
-  purchase_price: number;
-  current_price: number;
-  notes: string | null;
-  initial_value: number;
-  current_value: number;
-  created_at: string;
-  updated_at: string;
-};
-
-export type HoldingCreate = {
-  portfolio_id: number;
-  name: string;
-  category: string;
-  quantity: number;
-  purchase_price: number;
-  current_price: number;
-  notes?: string | null;
-};
-
-export type HoldingUpdate = Partial<HoldingCreate>;
-
-export async function getPortfolios(): Promise<Portfolio[]> {
-  const res = await fetch(`${API_BASE_URL}/api/portfolios`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch portfolios");
-  return res.json();
-}
-
-export async function createPortfolio(payload: PortfolioCreate): Promise<Portfolio> {
-  const res = await fetch(`${API_BASE_URL}/api/portfolios`, {
+export async function registerUser(username: string, password: string) {
+  return request<AuthResponse>("/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ username, password }),
   });
-  if (!res.ok) throw new Error("Failed to create portfolio");
-  return res.json();
 }
 
-export async function updatePortfolio(id: number, payload: PortfolioUpdate): Promise<Portfolio> {
-  const res = await fetch(`${API_BASE_URL}/api/portfolios/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("Failed to update portfolio");
-  return res.json();
-}
-
-export async function deletePortfolio(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/portfolios/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete portfolio");
-}
-
-export async function getHoldings(portfolioId?: number): Promise<Holding[]> {
-  const url = new URL(`${API_BASE_URL}/api/holdings`);
-  if (portfolioId) url.searchParams.set("portfolio_id", String(portfolioId));
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch holdings");
-  return res.json();
-}
-
-export async function createHolding(payload: HoldingCreate): Promise<Holding> {
-  const res = await fetch(`${API_BASE_URL}/api/holdings`, {
+export async function loginUser(username: string, password: string) {
+  return request<AuthResponse>("/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ username, password }),
   });
-  if (!res.ok) throw new Error("Failed to create holding");
-  return res.json();
 }
 
-export async function updateHolding(id: number, payload: HoldingUpdate): Promise<Holding> {
-  const res = await fetch(`${API_BASE_URL}/api/holdings/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("Failed to update holding");
-  return res.json();
+export async function getAssets(token: string) {
+  return request<Asset[]>("/assets", { method: "GET" }, token);
 }
 
-export async function deleteHolding(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/holdings/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete holding");
+export async function createAsset(
+  token: string,
+  payload: {
+    type: string;
+    name: string;
+    symbol?: string;
+    quantity: number;
+    purchase_price: number;
+    purchase_date?: string;
+    notes?: string;
+  }
+) {
+  return request<{ message: string; id: number }>("/assets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, token);
+}
+
+export async function updateAsset(
+  token: string,
+  id: number,
+  payload: Partial<{
+    type: string;
+    name: string;
+    symbol: string;
+    quantity: number;
+    purchase_price: number;
+    purchase_date: string;
+    notes: string;
+  }>
+) {
+  return request<{ message: string }>(`/assets/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  }, token);
+}
+
+export async function deleteAsset(token: string, id: number) {
+  return request<{ message: string }>(`/assets/${id}`, {
+    method: "DELETE",
+  }, token);
+}
+
+export async function getAdvice(token: string) {
+  return request<AdviceResponse>("/advice", { method: "GET" }, token);
 }
